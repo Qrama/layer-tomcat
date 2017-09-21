@@ -1,0 +1,10 @@
+name: tomcat
+summary: Apache Tomcat 9
+maintainer: Michiel Ghyselinck <michiel.ghyselinck@tengu.io>
+description: |
+  Apache Tomcat is an open source implementation of the Java Servlet and
+  JavaServer Pages (JSP) specifications, and provides a "pure Java" HTTP
+  web server environment for Java web applications to run.
+tags:
+  - web_server
+subordinate: false
