@@ -1,4 +1,9 @@
 options:
+  http-port:
+    type: string
+    default: "8080"
+    description: |
+      HTTP-port.
   install-type:
     type: string
     default: "full"
