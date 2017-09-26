@@ -1,34 +1,18 @@
 # Overview
 
-Describe the intended usage of this charm and anything unique about how this
-charm relates to others here.
+Apache Tomcat, often referred to as Tomcat Server, is an open-source Java Servlet Container developed by the Apache Software Foundation (ASF). Tomcat implements several Java EE specifications including Java Servlet, JavaServer Pages (JSP), Java EL, and WebSocket, and provides a "pure Java" HTTP web server environment in which Java code can run.
 
-This README will be displayed in the Charm Store, it should be either Markdown
-or RST. Ideal READMEs include instructions on how to use the charm, expected
-usage, and charm features that your audience might be interested in. For an
-example of a well written README check out Hadoop:
-http://jujucharms.com/charms/precise/hadoop
+Apache Tomcat version 9.0 implements the Servlet 4.0 and JavaServer Pages 2.3 specifications from the Java Community Process, and includes many additional features that make it a useful platform for developing and deploying web applications and web services.
 
-Use this as a Markdown reference if you need help with the formatting of this
-README: http://askubuntu.com/editing-help
-
-This charm provides [service][]. Add a description here of what the service
-itself actually does.
-
-Also remember to check the [icon guidelines][] so that your charm looks good
-in the Juju GUI.
+http://tomcat.apache.org
 
 # Usage
 
-Step by step instructions on using the charm:
+To deploy this Tomcat charm use:
+  juju deploy tomcat
 
-juju deploy servicename
-
-and so on. If you're providing a web service or something that the end user
-needs to go to, tell them here, especially if you're deploying a service that
-might listen to a non-default port.
-
-You can then browse to http://ip-address to configure the service.
+To make Tomcat publicly available use:
+  juju expose tomcat
 
 ## Scale out Usage
 

@@ -1,1 +1,1 @@
-includes: ['layer:basic', 'layer:apt', 'layer:layer-java']
+includes: ['layer:basic', 'layer:apt', 'layer:layer-java', 'interface:http']

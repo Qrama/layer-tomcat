@@ -8,3 +8,6 @@ description: |
 tags:
   - web_server
 subordinate: false
+provides:
+  http:
+    interface: http
