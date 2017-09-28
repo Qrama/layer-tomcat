@@ -4,6 +4,19 @@ options:
     default: "8080"
     description: |
       HTTP-port.
+  manager-enabled:
+    type: boolean
+    default: False
+    description: |
+      Enable this to be able to use the Manager web-app.
+  admin-username:
+    type: string
+    default: admin
+    description: Admin username.
+  admin-password:
+    type: string
+    default: ""
+    description: Admin password.
   install-type:
     type: string
     default: "full"
