@@ -12,11 +12,18 @@ options:
   admin-username:
     type: string
     default: admin
-    description: Admin username.
+    description: |
+      Admin username.
   admin-password:
     type: string
     default: ""
-    description: Admin password.
+    description: |
+      Admin password.
+  cluster-enabled:
+    type: boolean
+    default: False
+    description: |
+      Enable session clustering.
   install-type:
     type: string
     default: "full"

@@ -8,11 +8,12 @@ from charmhelpers.core import unitdata
 from charms.reactive import when, when_not, set_state, remove_state
 from charmhelpers.core.hookenv import status_set, open_port, close_port, config
 from jujubigdata import utils
+from lxml import etree
 
 # key value store that can be used across hooks
 DB = unitdata.kv()
 
-
+@when('apt.installed.python-lxml')
 @when('java.installed')
 @when_not('layer-tomcat.downloaded')
 def download_tomcat():
@@ -46,6 +47,7 @@ def configure_tomcat():
     # creates an admin user that has access to the manager-gui
     admin_username = config()["admin-username"]
     admin_password = config()["admin-password"]
+
     context = {'admin_username': admin_username,
                'admin_password': admin_password}
     render('tomcat-users.xml',
@@ -56,6 +58,7 @@ def configure_tomcat():
     DB.set('admin_username', admin_username)
     DB.set('admin_password', admin_password)
     DB.set('manager_enabled', config()["manager-enabled"])
+    DB.set('cluster_enabled', config()["cluster-enabled"])
 
     set_state('layer-tomcat.configured')
     status_set('maintenance', 'configured')
@@ -112,7 +115,10 @@ def update_config(http=None):
     new_http_port = config()['http-port']
     cur_manager_bool = DB.get('manager_enabled')
     new_manager_bool = config()['manager-enabled']
+    cur_cluster_bool = DB.get('cluster_enabled')
+    new_cluster_bool = config()['cluster-enabled']
 
+    # check if the http-port config has been changed
     if not cur_http_port == new_http_port:
         print("Port has been changed, updating...")
         config_changed = True
@@ -130,6 +136,7 @@ def update_config(http=None):
         DB.set('http_port', new_http_port)
         status_set('active', 'Tomcat is running on port ' + new_http_port)
 
+    # check if the manager-enabled config has been changed
     if not cur_manager_bool == new_manager_bool:
         print("Manager option has been changed, updating...")
         config_changed = True
@@ -146,8 +153,36 @@ def update_config(http=None):
 
         DB.set('manager_enabled', new_manager_bool)
 
+    # check if the cluster-enabled config has been changed
+    if not cur_cluster_bool == new_cluster_bool:
+        print("Cluster option has been changed, updating...")
+        config_changed = True
+        edit_xml_clustering(new_cluster_bool)
+
     if config_changed is True:
         #restart_tomcat()
         set_state('layer-tomcat.restarting')
     else:
         print("Nothing has changed.")
+
+def edit_xml_clustering(cluster_enabled):
+    doc = etree.parse('/opt/tomcat/apache-tomcat-9.0.0.M26/conf/server.xml')
+    service = doc.find('Service')
+    engine = service.find('Engine')
+
+    # if user wants clustering add default-cluster-config to server.xml
+    if cluster_enabled:
+        with open('../templates/default-cluster.xml', 'r') as cluster_config:
+            cluster_string = cluster_config.read()
+            cluster = etree.fromstring(cluster_string)
+            engine.insert(0, cluster)
+
+        with open('/opt/tomcat/apache-tomcat-9.0.0.M26/conf/server.xml.xml', 'w') as new:
+            doc.write(new, pretty_print=True)
+    else:
+        cluster = engine.find('Cluster')
+
+        if cluster is not None:
+            engine.remove(cluster)
+            with open('/opt/tomcat/apache-tomcat-9.0.0.M26/conf/server.xml', 'w') as new:
+                doc.write(new, pretty_print=True)
