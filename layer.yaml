@@ -1,1 +1,6 @@
-includes: ['layer:basic', 'layer:apt', 'layer:layer-java', 'interface:http']
+includes: ['layer:basic', 'layer:apt', 'interface:http']
+options:
+  basic:
+    packages: ['python3-lxml']
+  apt:
+    packages: ['openjdk-8-jre-headless']

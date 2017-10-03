@@ -6,30 +6,25 @@ import charmhelpers.fetch.archiveurl as ch_archiveurl
 from charmhelpers.core.templating import render
 from charmhelpers.core import unitdata
 from charms.reactive import when, when_not, set_state, remove_state
-from charmhelpers.core.hookenv import status_set, open_port, close_port, config
+from charmhelpers.core.hookenv import status_set, open_port, close_port, config, charm_dir
 from jujubigdata import utils
 from lxml import etree
 
 # key value store that can be used across hooks
 DB = unitdata.kv()
+TOMCAT_DIR = '/opt/apache-tomcat-9.0.1'
 
-@when('apt.installed.python-lxml')
-@when('java.installed')
+#@when('apt.installed.openjdk-8-jre-headless')
 @when_not('layer-tomcat.downloaded')
 def download_tomcat():
     status_set('maintenance', 'downloading...')
 
-    tomcat_dir = '/opt/tomcat'
-    if not os.path.isdir(tomcat_dir):
-        os.mkdir(tomcat_dir)
-
-    if not os.path.isfile(tomcat_dir + '/apache-tomcat-9.0.0.M26.tar.gz'):
+    if not os.path.isfile('/opt/apache-tomcat-9.0.1.tar.gz'):
         fetcher = ch_archiveurl.ArchiveUrlFetchHandler()
-        fetcher.download('http://www-eu.apache.org/dist/tomcat/tomcat-9/v9.0.0.M26/bin/apache-tomcat-9.0.0.M26.tar.gz',
-        '/opt/tomcat/apache-tomcat-9.0.0.M26.tar.gz')
+        fetcher.download('https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.1/bin/apache-tomcat-9.0.1.tar.gz', '/opt/apache-tomcat-9.0.1.tar.gz')
 
-    if not os.path.isdir(tomcat_dir + '/apache-tomcat-9.0.0.M26'):
-        subprocess.check_call(['tar', 'xvzf', '{}/apache-tomcat-9.0.0.M26.tar.gz'.format(tomcat_dir), '-C', tomcat_dir])
+    if not os.path.isdir(TOMCAT_DIR):
+        subprocess.check_call(['tar', 'xvzf', '{}/apache-tomcat-9.0.1.tar.gz'.format('/opt'), '-C', '/opt'])
 
     set_state('layer-tomcat.downloaded')
     status_set('maintenance', 'downloaded')
@@ -42,7 +37,7 @@ def configure_tomcat():
 
     # set environment variable CATALINA_HOME
     with utils.environment_edit_in_place('/etc/environment') as env:
-        env['CATALINA_HOME'] = '/opt/tomcat/apache-tomcat-9.0.0.M26'
+        env['CATALINA_HOME'] = TOMCAT_DIR
 
     # creates an admin user that has access to the manager-gui
     admin_username = config()["admin-username"]
@@ -51,7 +46,7 @@ def configure_tomcat():
     context = {'admin_username': admin_username,
                'admin_password': admin_password}
     render('tomcat-users.xml',
-           '/opt/tomcat/apache-tomcat-9.0.0.M26/conf/tomcat-users.xml',
+           TOMCAT_DIR + '/conf/tomcat-users.xml',
            context)
 
     # add values to key-value store so they can be used across hooks
@@ -70,7 +65,7 @@ def start_tomcat():
     status_set('maintenance', 'starting...')
 
     http_port = config()["http-port"]
-    subprocess.check_call(['/opt/tomcat/apache-tomcat-9.0.0.M26/bin/startup.sh'])
+    subprocess.check_call([TOMCAT_DIR + '/bin/startup.sh'])
     open_port(int(http_port))
     DB.set('http_port', http_port)
 
@@ -81,7 +76,7 @@ def start_tomcat():
 @when('layer-tomcat.started', 'layer-tomcat.restarting')
 def stop_tomcat():
     status_set('maintenance', 'restarting...')
-    subprocess.check_call(['/opt/tomcat/apache-tomcat-9.0.0.M26/bin/shutdown.sh'])
+    subprocess.check_call([TOMCAT_DIR + '/bin/shutdown.sh'])
     remove_state('layer-tomcat.restarting')
     remove_state('layer-tomcat.started')
 
@@ -101,6 +96,7 @@ def change_config1():
     update_config()
 
 
+# when tomcat is started and config has changed and has a http relation
 @when('layer-tomcat.http-configured', 'http.available', 'config.changed')
 def change_config2(http):
     update_config(http)
@@ -125,7 +121,7 @@ def update_config(http=None):
 
         context = {'http_port': new_http_port}
         render('server.xml',
-               '/opt/tomcat/apache-tomcat-9.0.0.M26/conf/server.xml',
+               TOMCAT_DIR + '/conf/server.xml',
                context)
 
         close_port(int(cur_http_port))
@@ -148,7 +144,7 @@ def update_config(http=None):
             context = {'manager_enabled': "127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1"}
 
         render('manager-context.xml',
-               '/opt/tomcat/apache-tomcat-9.0.0.M26/webapps/manager/META-INF/context.xml',
+               TOMCAT_DIR + '/webapps/manager/META-INF/context.xml',
                context)
 
         DB.set('manager_enabled', new_manager_bool)
@@ -158,6 +154,7 @@ def update_config(http=None):
         print("Cluster option has been changed, updating...")
         config_changed = True
         edit_xml_clustering(new_cluster_bool)
+        DB.set('cluster_enabled', new_cluster_bool)
 
     if config_changed is True:
         #restart_tomcat()
@@ -165,24 +162,27 @@ def update_config(http=None):
     else:
         print("Nothing has changed.")
 
+
 def edit_xml_clustering(cluster_enabled):
-    doc = etree.parse('/opt/tomcat/apache-tomcat-9.0.0.M26/conf/server.xml')
+    doc = etree.parse(TOMCAT_DIR + '/conf/server.xml')
     service = doc.find('Service')
     engine = service.find('Engine')
 
     # if user wants clustering add default-cluster-config to server.xml
     if cluster_enabled:
-        with open('../templates/default-cluster.xml', 'r') as cluster_config:
+        default_cluster_path = '{}/files/default-cluster.xml'.format(charm_dir())
+        with open(default_cluster_path, 'r') as cluster_config:
+
             cluster_string = cluster_config.read()
             cluster = etree.fromstring(cluster_string)
             engine.insert(0, cluster)
 
-        with open('/opt/tomcat/apache-tomcat-9.0.0.M26/conf/server.xml.xml', 'w') as new:
-            doc.write(new, pretty_print=True)
+        with open(TOMCAT_DIR + '/conf/server.xml', 'wb') as config_file:
+            doc.write(config_file, pretty_print=True)
     else:
         cluster = engine.find('Cluster')
 
         if cluster is not None:
             engine.remove(cluster)
-            with open('/opt/tomcat/apache-tomcat-9.0.0.M26/conf/server.xml', 'w') as new:
-                doc.write(new, pretty_print=True)
+            with open(TOMCAT_DIR + '/conf/server.xml', 'wb') as config_file:
+                doc.write(config_file, pretty_print=True)
