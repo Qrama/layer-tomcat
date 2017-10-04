@@ -111,14 +111,14 @@ def update_config(http=None):
     cur_http_port = DB.get('http_port')
     cur_manager_bool = DB.get('manager_enabled')
     cur_cluster_bool = DB.get('cluster_enabled')
-    # cur_admin_name = DB.get('admin_username')
-    # cur_admin_pass = DB.get('admin_password')
+    cur_admin_name = DB.get('admin_username')
+    cur_admin_pass = DB.get('admin_password')
 
     new_http_port = config()['http-port']
     new_manager_bool = config()['manager-enabled']
     new_cluster_bool = config()['cluster-enabled']
-    # new_admin_name = config()['admin-username']
-    # new_admin_pass = config()['admin-password']
+    new_admin_name = config()['admin-username']
+    new_admin_pass = config()['admin-password']
 
     # check if the http-port config has been changed
     if not cur_http_port == new_http_port:
@@ -150,7 +150,31 @@ def update_config(http=None):
         DB.set('cluster_enabled', new_cluster_bool)
 
     # check if the username has been changed
-    # if not cur_admin_name == new_admin_name:
+    if not (cur_admin_name == new_admin_name):
+        config_changed = True
+
+        context = {'admin_username': new_admin_name,
+                   'admin_password': new_admin_pass}
+        render('tomcat-users.xml',
+               TOMCAT_DIR + '/conf/tomcat-users.xml',
+               context)
+
+        DB.set('admin_username', new_admin_name)
+        DB.set('admin_password', new_admin_pass)
+
+    # check if the username has been changed
+    if not (cur_admin_pass == new_admin_pass):
+        config_changed = True
+
+        context = {'admin_username': new_admin_name,
+                   'admin_password': new_admin_pass}
+        render('tomcat-users.xml',
+               TOMCAT_DIR + '/conf/tomcat-users.xml',
+               context)
+
+        DB.set('admin_username', new_admin_name)
+        DB.set('admin_password', new_admin_pass)
+
 
     if config_changed is True:
         #restart_tomcat()
