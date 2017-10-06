@@ -11,3 +11,6 @@ subordinate: false
 provides:
   http:
     interface: http
+# peers:
+#   cluster:
+#     interface: tomcat

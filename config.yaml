@@ -1,25 +1,25 @@
 options:
-  http-port:
+  http_port:
     type: string
     default: "8080"
     description: |
       HTTP-port.
-  manager-enabled:
-    type: boolean
-    default: False
-    description: |
-      Enable this to be able to use the Manager web-app.
-  admin-username:
+  admin_username:
     type: string
     default: admin
     description: |
       Admin username.
-  admin-password:
+  admin_password:
     type: string
     default: ""
     description: |
       Admin password.
-  cluster-enabled:
+  manager_enabled:
+    type: boolean
+    default: False
+    description: |
+      Enable this to be able to use the Manager web-app.
+  cluster_enabled:
     type: boolean
     default: False
     description: |

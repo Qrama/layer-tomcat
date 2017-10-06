@@ -2,11 +2,12 @@
 
 import subprocess
 import os
-import charmhelpers.fetch.archiveurl as ch_archiveurl
-from charmhelpers.core.templating import render
+
+from charms.reactive import when, when_not, when_any, set_state, remove_state
 from charmhelpers.core import unitdata
-from charms.reactive import when, when_not, set_state, remove_state
+from charmhelpers.core.templating import render
 from charmhelpers.core.hookenv import status_set, open_port, close_port, config, charm_dir
+from charmhelpers.fetch.archiveurl import ArchiveUrlFetchHandler
 from jujubigdata import utils
 from tomcat_xml_parser import TomcatXmlParser
 
@@ -14,34 +15,31 @@ from tomcat_xml_parser import TomcatXmlParser
 DB = unitdata.kv()
 TOMCAT_DIR = '/opt/apache-tomcat-9.0.1'
 
-#@when('apt.installed.openjdk-8-jre-headless')
 @when_not('layer-tomcat.downloaded')
 def download_tomcat():
-    status_set('maintenance', 'downloading...')
-
+    status_set('maintenance', 'Downloading Tomcat...')
     if not os.path.isfile('/opt/apache-tomcat-9.0.1.tar.gz'):
-        fetcher = ch_archiveurl.ArchiveUrlFetchHandler()
+        fetcher = ArchiveUrlFetchHandler()
         fetcher.download('https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.1/bin/apache-tomcat-9.0.1.tar.gz', '/opt/apache-tomcat-9.0.1.tar.gz')
 
     if not os.path.isdir(TOMCAT_DIR):
-        subprocess.check_call(['tar', 'xvzf', '{}/apache-tomcat-9.0.1.tar.gz'.format('/opt'), '-C', '/opt'])
+        subprocess.check_call(['tar', 'xvzf', '/opt/apache-tomcat-9.0.1.tar.gz', '-C', '/opt'])
 
     set_state('layer-tomcat.downloaded')
-    status_set('maintenance', 'downloaded')
 
 
 @when('layer-tomcat.downloaded')
 @when_not('layer-tomcat.configured')
 def configure_tomcat():
-    status_set('maintenance', 'configuring...')
+    status_set('maintenance', 'Configuring Tomcat...')
 
     # set environment variable CATALINA_HOME
     with utils.environment_edit_in_place('/etc/environment') as env:
         env['CATALINA_HOME'] = TOMCAT_DIR
 
     # creates an admin user that has access to the manager-gui
-    admin_username = config()["admin-username"]
-    admin_password = config()["admin-password"]
+    admin_username = config()["admin_username"]
+    admin_password = config()["admin_password"]
 
     context = {'admin_username': admin_username,
                'admin_password': admin_password}
@@ -52,132 +50,110 @@ def configure_tomcat():
     # add values to key-value store so they can be used across hooks
     DB.set('admin_username', admin_username)
     DB.set('admin_password', admin_password)
-    DB.set('manager_enabled', config()["manager-enabled"])
-    DB.set('cluster_enabled', config()["cluster-enabled"])
+    DB.set('manager_enabled', config()["manager_enabled"])
+    DB.set('cluster_enabled', config()["cluster_enabled"])
 
     set_state('layer-tomcat.configured')
-    status_set('maintenance', 'configured')
 
 
 @when('layer-tomcat.configured')
 @when_not('layer-tomcat.started')
 def start_tomcat():
-    status_set('maintenance', 'starting...')
-
-    http_port = config()["http-port"]
+    status_set('maintenance', 'Starting Tomcat...')
+    http_port = config()["http_port"]
     subprocess.check_call([TOMCAT_DIR + '/bin/startup.sh'])
     open_port(int(http_port))
     DB.set('http_port', http_port)
 
     set_state('layer-tomcat.started')
-    status_set('active', 'running on port ' + http_port)
-
-
-@when('layer-tomcat.started', 'layer-tomcat.restarting')
-def stop_tomcat():
-    status_set('maintenance', 'restarting...')
-    subprocess.check_call([TOMCAT_DIR + '/bin/shutdown.sh'])
-    remove_state('layer-tomcat.restarting')
-    remove_state('layer-tomcat.started')
+    status_set('active', 'Tomcat is running.')
 
 
 # when a relation is made with another charm f.e. haproxy then http.available will trigger
 @when('layer-tomcat.started', 'http.available')
 @when_not('layer-tomcat.http-configured')
 def configure_http(http):
-    print("Configuring http...")
-    http.configure(int(config()['http-port']))
+    status_set('maintenance', 'Configuring http...')
+    http.configure(int(config()['http_port']))
     set_state('layer-tomcat.http-configured')
 
 
-# when tomcat is started and config has changed but no http-relation
 @when('layer-tomcat.started', 'config.changed')
-def change_config1():
-    update_config()
+def change_config():
+    conf = config()
+
+    if conf.changed('http_port'):
+        change_http_config()
+
+    if conf.changed('admin_username') or conf.changed('admin_password'):
+        change_admin_config()
+
+    if conf.changed('manager_enabled'):
+        change_manager_config()
+
+    if conf.changed('cluster_enabled'):
+        change_cluster_config()
+
+    restart_tomcat()
 
 
-# when tomcat is started and config has changed and has a http relation
-@when('layer-tomcat.http-configured', 'http.available', 'config.changed')
-def change_config2(http):
-    update_config(http)
+def change_http_config():
+    print("Changing port...")
+    old_http_port = DB.get('http_port')
+    new_http_port = config()['http_port']
+
+    xml_parser = TomcatXmlParser(TOMCAT_DIR)
+    xml_parser.set_port(new_http_port)
+
+    close_port(int(old_http_port))
+    open_port(int(new_http_port))
+
+    DB.set('http_port', new_http_port)
+    print("Changed port.")
 
 
-def update_config(http=None):
-    print("Changing config...")
-    parser = TomcatXmlParser(TOMCAT_DIR)
-    # if a config changes change this to true
-    config_changed = False
+def change_admin_config():
+    print("Changing admin...")
+    new_admin_name = config()['admin_username']
+    new_admin_pass = config()['admin_password']
 
-    cur_http_port = DB.get('http_port')
-    cur_manager_bool = DB.get('manager_enabled')
-    cur_cluster_bool = DB.get('cluster_enabled')
-    cur_admin_name = DB.get('admin_username')
-    cur_admin_pass = DB.get('admin_password')
+    context = {'admin_username': new_admin_name,
+               'admin_password': new_admin_pass}
+    render('tomcat-users.xml',
+           TOMCAT_DIR + '/conf/tomcat-users.xml',
+           context)
 
-    new_http_port = config()['http-port']
-    new_manager_bool = config()['manager-enabled']
-    new_cluster_bool = config()['cluster-enabled']
-    new_admin_name = config()['admin-username']
-    new_admin_pass = config()['admin-password']
-
-    # check if the http-port config has been changed
-    if not cur_http_port == new_http_port:
-        print("Port has been changed, updating...")
-        config_changed = True
-
-        parser.set_port(new_http_port)
-
-        close_port(int(cur_http_port))
-        open_port(int(new_http_port))
-        # http-interface must also use new port
-        if http is not None:
-            http.configure(new_http_port)
-        DB.set('http_port', new_http_port)
-        status_set('active', 'Tomcat is running on port ' + new_http_port)
-
-    # check if the manager-enabled config has been changed
-    if not cur_manager_bool == new_manager_bool:
-        print("Manager option has been changed, updating...")
-        config_changed = True
-        parser.set_manager(new_manager_bool)
-        DB.set('manager_enabled', new_manager_bool)
-
-    # check if the cluster-enabled config has been changed
-    if not cur_cluster_bool == new_cluster_bool:
-        print("Cluster option has been changed, updating...")
-        config_changed = True
-        parser.set_clustering(new_cluster_bool)
-        DB.set('cluster_enabled', new_cluster_bool)
-
-    # check if the username has been changed
-    if not (cur_admin_name == new_admin_name):
-        config_changed = True
-
-        context = {'admin_username': new_admin_name,
-                   'admin_password': new_admin_pass}
-        render('tomcat-users.xml',
-               TOMCAT_DIR + '/conf/tomcat-users.xml',
-               context)
-
-        DB.set('admin_username', new_admin_name)
-        DB.set('admin_password', new_admin_pass)
-
-    # check if the username has been changed
-    if not (cur_admin_pass == new_admin_pass):
-        config_changed = True
-
-        context = {'admin_username': new_admin_name,
-                   'admin_password': new_admin_pass}
-        render('tomcat-users.xml',
-               TOMCAT_DIR + '/conf/tomcat-users.xml',
-               context)
-
-        DB.set('admin_username', new_admin_name)
-        DB.set('admin_password', new_admin_pass)
+    DB.set('admin_username', new_admin_name)
+    DB.set('admin_password', new_admin_pass)
+    print("Changed admin.")
 
 
-    if config_changed is True:
-        #restart_tomcat()
-        set_state('layer-tomcat.restarting')
-    else:
-        print("Nothing has changed.")
+def change_manager_config():
+    print("Changing manager...")
+    new_manager_bool = config()['manager_enabled']
+
+    xml_parser = TomcatXmlParser(TOMCAT_DIR)
+    xml_parser.set_manager(new_manager_bool)
+
+    DB.set('manager_enabled', new_manager_bool)
+    print("Changed manager.")
+
+
+def change_cluster_config():
+    print("Changing cluster...")
+    new_cluster_bool = config()['cluster_enabled']
+
+    xml_parser = TomcatXmlParser(TOMCAT_DIR)
+    xml_parser.set_manager(new_cluster_bool)
+
+    DB.set('cluster_enabled', new_cluster_bool)
+    print("Changed cluster.")
+
+
+def restart_tomcat():
+    print("Restarting Tomcat...")
+    print("Shutting down...")
+    subprocess.check_call([TOMCAT_DIR + '/bin/shutdown.sh'])
+    print("Starting tomcat...")
+    subprocess.check_call([TOMCAT_DIR + '/bin/startup.sh'])
+    print("Tomcat has been restarted.")
