@@ -39,7 +39,6 @@ class TomcatXmlParser:
         if cluster_enabled:
             default_cluster_path = '{}/files/default-cluster.xml'.format(charm_dir())
             with open(default_cluster_path, 'r') as cluster_config:
-
                 cluster_string = cluster_config.read()
                 cluster = etree.fromstring(cluster_string)
                 engine.insert(0, cluster)

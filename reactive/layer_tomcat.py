@@ -78,7 +78,12 @@ def configure_http(http):
     set_state('layer-tomcat.http-configured')
 
 
-@when('layer-tomcat.started', 'config.changed')
+# Hoe relatie met http het best aanpakken?
+# @when('config.changed, http.available')
+# def update_relationship(http):
+
+
+@when('config.changed', 'layer-tomcat.started')
 def change_config():
     conf = config()
 
@@ -144,7 +149,7 @@ def change_cluster_config():
     new_cluster_bool = config()['cluster_enabled']
 
     xml_parser = TomcatXmlParser(TOMCAT_DIR)
-    xml_parser.set_manager(new_cluster_bool)
+    xml_parser.set_clustering(new_cluster_bool)
 
     DB.set('cluster_enabled', new_cluster_bool)
     print("Changed cluster.")
