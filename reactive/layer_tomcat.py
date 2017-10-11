@@ -70,20 +70,16 @@ def start_tomcat():
 
 
 # when a relation is made with another charm f.e. haproxy then http.available will trigger
-@when('layer-tomcat.started', 'http.available')
+@when('layer-tomcat.started')
+@when('http.available')
 @when_not('layer-tomcat.http-configured')
 def configure_http(http):
-    status_set('maintenance', 'Configuring http...')
     http.configure(int(config()['http_port']))
     set_state('layer-tomcat.http-configured')
 
 
-# Hoe relatie met http het best aanpakken?
-# @when('config.changed, http.available')
-# def update_relationship(http):
-
-
-@when('config.changed', 'layer-tomcat.started')
+@when('layer-tomcat.started')
+@when('config.changed')
 def change_config():
     conf = config()
 
@@ -100,6 +96,14 @@ def change_config():
         change_cluster_config()
 
     restart_tomcat()
+
+
+@when('layer-tomcat.http-configured')
+@when('config.changed.http_port')
+@when('http.available')
+def update_http_relation(http):
+    new_http_port = config()['http_port']
+    http.configure(new_http_port)
 
 
 def change_http_config():
