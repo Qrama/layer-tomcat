@@ -30,6 +30,7 @@ class TomcatXmlParser:
         with open(self.dir + '/webapps/manager/META-INF/context.xml', 'wb') as new:
             doc.write(new, pretty_print=True)
 
+    # adds large default cluster config to server.xml
     def set_clustering(self, cluster_enabled):
         doc = etree.parse(self.dir + '/conf/server.xml')
         service = doc.find('Service')
@@ -48,6 +49,27 @@ class TomcatXmlParser:
         else:
             cluster = engine.find('Cluster')
 
+            if cluster is not None:
+                engine.remove(cluster)
+                with open(self.dir + '/conf/server.xml', 'wb') as config_file:
+                    doc.write(config_file, pretty_print=True)
+
+    # this method is an alternative for set_clustering(...)
+    # adds a smaller (one line) configuration for clustering
+    # <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/>
+    def set_clustering_one_line(self, cluster_enabled):
+        doc = etree.parse(self.dir + '/conf/server.xml')
+        service = doc.find('Service')
+        engine = service.find('Engine')
+
+        # if user wants clustering add default-cluster-config to server.xml
+        if cluster_enabled:
+            cluster = etree.fromstring('<Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/>')
+            engine.insert(0, cluster)
+            with open(self.dir + '/conf/server.xml', 'wb') as config_file:
+                doc.write(config_file, pretty_print=True)
+        else:
+            cluster = engine.find('Cluster')
             if cluster is not None:
                 engine.remove(cluster)
                 with open(self.dir + '/conf/server.xml', 'wb') as config_file:

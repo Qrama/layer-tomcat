@@ -1,4 +1,5 @@
 includes: ['layer:basic', 'layer:apt', 'interface:http']
+repo: https://github.com/Qrama/layer-tomcat.git
 options:
   basic:
     packages: ['python3-lxml']

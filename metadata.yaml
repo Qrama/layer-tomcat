@@ -9,8 +9,8 @@ tags:
   - web_server
 subordinate: false
 provides:
-  http:
+  haproxy:
     interface: http
-# peers:
-#   cluster:
-#     interface: tomcat
+# requires:
+#   haproxy:
+#     interface: http

@@ -47,12 +47,6 @@ def configure_tomcat():
            TOMCAT_DIR + '/conf/tomcat-users.xml',
            context)
 
-    # add values to key-value store so they can be used across hooks
-    DB.set('admin_username', admin_username)
-    DB.set('admin_password', admin_password)
-    DB.set('manager_enabled', config()["manager_enabled"])
-    DB.set('cluster_enabled', config()["cluster_enabled"])
-
     set_state('layer-tomcat.configured')
 
 
@@ -69,13 +63,13 @@ def start_tomcat():
     status_set('active', 'Tomcat is running.')
 
 
-# when a relation is made with another charm f.e. haproxy then http.available will trigger
+# when a relation is made with another charm f.e. haproxy then haproxy.available will trigger
 @when('layer-tomcat.started')
-@when('http.available')
-@when_not('layer-tomcat.http-configured')
-def configure_http(http):
-    http.configure(int(config()['http_port']))
-    set_state('layer-tomcat.http-configured')
+@when('haproxy.available')
+@when_not('layer-tomcat.haproxy-configured')
+def configure_haproxy(haproxy):
+    haproxy.configure(int(config()['http_port']))
+    set_state('layer-tomcat.haproxy-configured')
 
 
 @when('layer-tomcat.started')
@@ -98,16 +92,37 @@ def change_config():
     restart_tomcat()
 
 
-@when('layer-tomcat.http-configured')
+@when('layer-tomcat.haproxy-configured')
 @when('config.changed.http_port')
-@when('http.available')
-def update_http_relation(http):
+@when('haproxy.available')
+def update_haproxy_relation(haproxy):
     new_http_port = config()['http_port']
-    http.configure(new_http_port)
+    haproxy.configure(new_http_port)
+
+
+@when('layer-tomcat.cluster-enabled')
+@when_not('haproxy.available')
+def missing_haproxy_notice():
+    set_state('layer-tomcat.blocked-no-haproxy')
+    status_set('blocked', 'Relation with HAProxy is required for clustering.')
+
+
+@when('layer-tomcat.blocked-no-haproxy')
+@when_not('layer-tomcat.cluster-enabled')
+def unblock_cluster_disabled():
+    remove_state('layer-tomcat.blocked-no-haproxy')
+    status_set('active', 'Tomcat is running (not in cluster).')
+
+
+@when('layer-tomcat.blocked-no-haproxy')
+@when('layer-tomcat.cluster-enabled')
+@when('haproxy.available')
+def unblock_haproxy_available(haproxy):
+    remove_state('layer-tomcat.blocked-no-haproxy')
+    status_set('active', 'Tomcat is running (in cluster).')
 
 
 def change_http_config():
-    print("Changing port...")
     old_http_port = DB.get('http_port')
     new_http_port = config()['http_port']
 
@@ -116,53 +131,35 @@ def change_http_config():
 
     close_port(int(old_http_port))
     open_port(int(new_http_port))
-
     DB.set('http_port', new_http_port)
-    print("Changed port.")
 
 
 def change_admin_config():
-    print("Changing admin...")
     new_admin_name = config()['admin_username']
     new_admin_pass = config()['admin_password']
-
     context = {'admin_username': new_admin_name,
                'admin_password': new_admin_pass}
     render('tomcat-users.xml',
            TOMCAT_DIR + '/conf/tomcat-users.xml',
            context)
 
-    DB.set('admin_username', new_admin_name)
-    DB.set('admin_password', new_admin_pass)
-    print("Changed admin.")
-
 
 def change_manager_config():
-    print("Changing manager...")
     new_manager_bool = config()['manager_enabled']
-
     xml_parser = TomcatXmlParser(TOMCAT_DIR)
     xml_parser.set_manager(new_manager_bool)
 
-    DB.set('manager_enabled', new_manager_bool)
-    print("Changed manager.")
-
 
 def change_cluster_config():
-    print("Changing cluster...")
-    new_cluster_bool = config()['cluster_enabled']
-
+    cluster_enabled = config()['cluster_enabled']
     xml_parser = TomcatXmlParser(TOMCAT_DIR)
-    xml_parser.set_clustering(new_cluster_bool)
-
-    DB.set('cluster_enabled', new_cluster_bool)
-    print("Changed cluster.")
+    xml_parser.set_clustering_one_line(cluster_enabled)
+    if cluster_enabled:
+        set_state('layer-tomcat.cluster-enabled')
+    else:
+        remove_state('layer-tomcat.cluster-enabled')
 
 
 def restart_tomcat():
-    print("Restarting Tomcat...")
-    print("Shutting down...")
     subprocess.check_call([TOMCAT_DIR + '/bin/shutdown.sh'])
-    print("Starting tomcat...")
     subprocess.check_call([TOMCAT_DIR + '/bin/startup.sh'])
-    print("Tomcat has been restarted.")
