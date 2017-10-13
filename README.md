@@ -8,42 +8,30 @@ http://tomcat.apache.org
 
 # Usage
 
-To deploy this Tomcat charm use:
-  juju deploy tomcat
-
-To make Tomcat publicly available use:
-  juju expose tomcat
+Deploy the Tomcat charm:
+```sh
+juju deploy tomcat
+```
+Make Tomcat publicly available:
+```sh
+juju expose tomcat
+```
+Browse to the public IP with port to start using Tomcat. For example: "http://35.195.173.22:8080".
 
 ## Scale out Usage
 
-If the charm has any recommendations for running at scale, outline them in
-examples here. For example if you have a memcached relation that improves
-performance, mention it here.
-
-## Known Limitations and Issues
-
-This not only helps users but gives people a place to start if they want to help
-you add features to your charm.
-
-# Configuration
-
-The configuration options will be listed on the charm store, however If you're
-making assumptions or opinionated decisions in the charm (like setting a default
-administrator password), you should detail that here so the user knows how to
-change it immediately, etc.
+Checklist for scaling Tomcat:
+- Make sure you enable clustering in the configuration by clicking the **cluster_enabled** option.
+- Add **<distributable/>** to **web.xml** of every webapp that needs session replication. The session state gets transferred for each web application that has distributable in its web.xml. The file can be found in the WEB-INF folder. For example: /opt/apache-tomcat-9.0.1/webapps/manager/WEB-INF/web.xml.
+- A relation with [HAProxy] is required to make clustering work.
 
 # Contact Information
 
-Though this will be listed in the charm store itself don't assume a user will
-know that, so include that information here:
-
-## Upstream Project Name
-
-  - Upstream website
-  - Upstream bug tracker
-  - Upstream mailing list or contact information
-  - Feel free to add things if it's useful for users
-
+- [Tomcat Homepage]
+- [Tomcat Clustering Documentation]
 
 [service]: http://example.com
 [icon guidelines]: https://jujucharms.com/docs/stable/authors-charm-icon
+[haproxy]: <https://jujucharms.com/haproxy/41>
+[tomcat homepage]: http://tomcat.apache.org/
+[tomcat clustering documentation]: https://tomcat.apache.org/tomcat-9.0-doc/cluster-howto.html
