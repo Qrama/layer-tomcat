@@ -2,6 +2,7 @@
 
 import subprocess
 import os
+import psutil
 
 from charms.reactive import when, when_not, when_any, set_state, remove_state
 from charmhelpers.core import unitdata
@@ -37,6 +38,10 @@ def configure_tomcat():
     with utils.environment_edit_in_place('/etc/environment') as env:
         env['CATALINA_HOME'] = TOMCAT_DIR
 
+    with open(TOMCAT_DIR + "/bin/setenv.sh", "a+") as setenv:
+        setenv.write('CATALINA_PID="$CATALINA_BASE/bin/catalina.pid"')
+
+
     # creates an admin user that has access to the manager-gui
     admin_username = config()["admin_username"]
     admin_password = config()["admin_password"]
@@ -55,7 +60,9 @@ def configure_tomcat():
 def start_tomcat():
     status_set('maintenance', 'Starting Tomcat...')
     http_port = config()["http_port"]
+    print("First time starting Tomcat...")
     subprocess.check_call([TOMCAT_DIR + '/bin/startup.sh'])
+    print("Opening HTTP port...")
     open_port(int(http_port))
     DB.set('http_port', http_port)
 
@@ -75,14 +82,15 @@ def configure_haproxy(haproxy):
 @when('layer-tomcat.started')
 @when('config.changed')
 def change_config():
+    print("Changing config...")
     conf = config()
-
-    if conf.changed('http_port'):
-        change_http_config()
-
-    if conf.changed('admin_username') or conf.changed('admin_password'):
-        change_admin_config()
-
+    #
+    # if conf.changed('http_port'):
+    #     change_http_config()
+    #
+    # if conf.changed('admin_username') or conf.changed('admin_password'):
+    #     change_admin_config()
+    #
     if conf.changed('manager_enabled'):
         change_manager_config()
 
@@ -123,6 +131,7 @@ def unblock_haproxy_available(haproxy):
 
 
 def change_http_config():
+    print("Changing HTTP config...")
     old_http_port = DB.get('http_port')
     new_http_port = config()['http_port']
 
@@ -135,6 +144,7 @@ def change_http_config():
 
 
 def change_admin_config():
+    print("Changing admin config...")
     new_admin_name = config()['admin_username']
     new_admin_pass = config()['admin_password']
     context = {'admin_username': new_admin_name,
@@ -145,12 +155,14 @@ def change_admin_config():
 
 
 def change_manager_config():
+    print("Changing manager config...")
     new_manager_bool = config()['manager_enabled']
     xml_parser = TomcatXmlParser(TOMCAT_DIR)
     xml_parser.set_manager(new_manager_bool)
 
 
 def change_cluster_config():
+    print("Changing cluster config...")
     cluster_enabled = config()['cluster_enabled']
     xml_parser = TomcatXmlParser(TOMCAT_DIR)
     xml_parser.set_clustering_one_line(cluster_enabled)
@@ -161,5 +173,18 @@ def change_cluster_config():
 
 
 def restart_tomcat():
-    subprocess.check_call([TOMCAT_DIR + '/bin/shutdown.sh'])
+    if is_tomcat_running():
+        print("Shutting down...")
+        subprocess.check_call([TOMCAT_DIR + '/bin/shutdown.sh'])
+    print("Starting up...")
     subprocess.check_call([TOMCAT_DIR + '/bin/startup.sh'])
+
+def is_tomcat_running():
+    catalina_pid_path = TOMCAT_DIR + "/bin/catalina.pid"
+    if os.path.isfile(catalina_pid_path):
+        # Get the process id of the tomcat instance.
+        with open(catalina_pid_path, 'r') as pid_file:
+            pid = pid_file.readline()
+            return psutil.pid_exists(int(pid))
+    else:
+        return False

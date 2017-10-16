@@ -11,6 +11,3 @@ subordinate: false
 provides:
   haproxy:
     interface: http
-# requires:
-#   haproxy:
-#     interface: http

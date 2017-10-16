@@ -2,6 +2,6 @@ includes: ['layer:basic', 'layer:apt', 'interface:http']
 repo: https://github.com/Qrama/layer-tomcat.git
 options:
   basic:
-    packages: ['python3-lxml']
+    packages: ['python3-lxml', 'python-psutil', 'python3-psutil']
   apt:
     packages: ['openjdk-8-jre-headless']
