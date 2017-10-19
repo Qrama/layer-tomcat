@@ -23,7 +23,11 @@ Browse to the public IP with port to start using Tomcat. For example: "http://35
 Checklist for scaling Tomcat:
 - Make sure you enable clustering in the configuration by clicking the **cluster_enabled** option.
 - Add **<distributable/>** to **web.xml** of every webapp that needs session replication. The session state gets transferred for each web application that has distributable in its web.xml. The file can be found in the WEB-INF folder. For example: /opt/apache-tomcat-9.0.1/webapps/manager/WEB-INF/web.xml.
-- A relation with [HAProxy] is required to make clustering work.
+- A relation with [HAProxy] is required to make clustering work. If you decide to use a load balancer like HAProxy make sure you unexpose Tomcat and expose the load balancer for security reasons.
+
+# Known Limitations and Issues
+
+- At the moment clustering only works when your cloud provider enables multicasting.
 
 # Contact Information
 
