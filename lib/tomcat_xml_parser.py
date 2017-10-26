@@ -7,15 +7,17 @@ class TomcatXmlParser:
 
     def __init__(self, dir):
         self.dir = dir
+        self.server_config = dir + '/conf/server.xml'
 
     def set_port(self, port):
-        doc = etree.parse(self.dir + '/conf/server.xml')
+        doc = etree.parse(self.server_config)
         service = doc.find('Service')
         connector = service.find('Connector')
-        # edit the port of the first connector
-        connector.set('port', port)
 
-        with open(self.dir  + '/conf/server.xml', 'wb') as config_file:
+        for connector in doc.xpath('//Connector[@protocol="HTTP/1.1"]'):
+            connector.set('port', port)
+
+        with open(self.server_config, 'wb') as config_file:
             doc.write(config_file, pretty_print=True)
 
     def set_manager(self, manager_enabled):
@@ -30,47 +32,25 @@ class TomcatXmlParser:
         with open(self.dir + '/webapps/manager/META-INF/context.xml', 'wb') as new:
             doc.write(new, pretty_print=True)
 
-    # adds large default cluster config to server.xml
-    def set_clustering(self, cluster_enabled):
-        doc = etree.parse(self.dir + '/conf/server.xml')
-        service = doc.find('Service')
-        engine = service.find('Engine')
+    def add_clustering(self):
+        doc = etree.parse(self.server_config)
 
-        # if user wants clustering add default-cluster-config to server.xml
-        if cluster_enabled:
+        for engine in doc.xpath("/Server/Service[@name='Catalina']/Engine[@name='Catalina']"):
             default_cluster_path = '{}/files/default-cluster.xml'.format(charm_dir())
             with open(default_cluster_path, 'r') as cluster_config:
-                cluster_string = cluster_config.read()
-                cluster = etree.fromstring(cluster_string)
+                cluster_xml = cluster_config.read()
+                cluster = etree.fromstring(cluster_xml)
                 engine.insert(0, cluster)
 
-            with open(self.dir + '/conf/server.xml', 'wb') as config_file:
-                doc.write(config_file, pretty_print=True)
-        else:
-            cluster = engine.find('Cluster')
+        with open(self.server_config, 'wb') as config_file:
+            doc.write(config_file, pretty_print=True)
 
-            if cluster is not None:
+    def remove_clustering(self):
+        doc = etree.parse(self.server_config)
+
+        for engine in doc.xpath("/Server/Service[@name='Catalina']/Engine[@name='Catalina']"):
+            for cluster in engine.findall('Cluster'):
                 engine.remove(cluster)
-                with open(self.dir + '/conf/server.xml', 'wb') as config_file:
-                    doc.write(config_file, pretty_print=True)
 
-    # this method is an alternative for set_clustering(...)
-    # adds a smaller (one line) configuration for clustering
-    # <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/>
-    def set_clustering_one_line(self, cluster_enabled):
-        doc = etree.parse(self.dir + '/conf/server.xml')
-        service = doc.find('Service')
-        engine = service.find('Engine')
-
-        # if user wants clustering add default-cluster-config to server.xml
-        if cluster_enabled:
-            cluster = etree.fromstring('<Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/>')
-            engine.insert(0, cluster)
-            with open(self.dir + '/conf/server.xml', 'wb') as config_file:
-                doc.write(config_file, pretty_print=True)
-        else:
-            cluster = engine.find('Cluster')
-            if cluster is not None:
-                engine.remove(cluster)
-                with open(self.dir + '/conf/server.xml', 'wb') as config_file:
-                    doc.write(config_file, pretty_print=True)
+        with open(self.server_config, 'wb') as config_file:
+            doc.write(config_file, pretty_print=True)

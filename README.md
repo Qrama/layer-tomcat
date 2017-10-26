@@ -27,7 +27,7 @@ Checklist for scaling Tomcat:
 
 # Known Limitations and Issues
 
-- At the moment clustering only works when your cloud provider enables multicasting.
+- At the moment clustering only works when your cloud provider allows multicasting.
 
 # Contact Information
 

@@ -11,3 +11,6 @@ subordinate: false
 provides:
   haproxy:
     interface: http
+# peers:
+#   cluster:
+#     interface: tomcat

@@ -47,7 +47,6 @@ def configure_tomcat():
     with open(TOMCAT_DIR + "/bin/setenv.sh", "a+") as setenv:
         setenv.write('CATALINA_PID="$CATALINA_BASE/bin/catalina.pid"')
 
-
     # Creates an admin user that has access to the manager-gui.
     admin_username = config()["admin_username"]
     admin_password = config()["admin_password"]
@@ -68,17 +67,15 @@ def start_tomcat():
     status_set('maintenance', 'Starting Tomcat...')
     http_port = config()["http_port"]
 
-    print("First time starting Tomcat...")
     subprocess.check_call([TOMCAT_DIR + '/bin/startup.sh'])
 
-    print("Opening HTTP port...")
     # Open the port from the config file (default 8080) so Tomcat can
     # be accessed after it is exposed.
     open_port(int(http_port))
     DB.set('http_port', http_port)
 
     set_state('layer-tomcat.started')
-    status_set('active', 'Tomcat is running.')
+    status_set('active', 'Tomcat is running (not in cluster).')
 
 
 # When a relation is made with another charm using the http interface
@@ -196,11 +193,12 @@ def change_cluster_config():
     print("Changing cluster config...")
     cluster_enabled = config()['cluster_enabled']
     xml_parser = TomcatXmlParser(TOMCAT_DIR)
-    xml_parser.set_clustering_one_line(cluster_enabled)
 
     if cluster_enabled:
+        xml_parser.add_clustering()
         set_state('layer-tomcat.cluster-enabled')
     else:
+        xml_parser.remove_clustering()
         remove_state('layer-tomcat.cluster-enabled')
 
 
